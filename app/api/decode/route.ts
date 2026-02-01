@@ -51,6 +51,10 @@ const readPrompt = async () => {
   const promptPath = path.join(cwd, "prompt.md")
   const promptLocalPath = path.join(cwd, "prompt.local.md")
 
+  if (process.env.PROMPT_TEXT?.trim()) {
+    return process.env.PROMPT_TEXT
+  }
+
   try {
     return await readFile(promptPath, "utf-8")
   } catch {
