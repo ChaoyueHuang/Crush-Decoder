@@ -16,6 +16,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .npm-cache
+.DS_Store
 
 # env files
 .env*
@@ -23,6 +24,9 @@ prompt.local.md
 prompt.md
 project_context.local.md
 project_context.md
+gift_codes.txt
+test_codes.txt
+crush_codes.txt
 
 # vercel
 .vercel

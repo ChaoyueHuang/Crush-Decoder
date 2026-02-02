@@ -31,15 +31,42 @@ export function PaymentModal({ isOpen, onClose, onPaymentComplete }: PaymentModa
 
   const handleUnlock = async () => {
     if (!redemptionCode.trim()) {
-      toast.error("请输入兑换码")
+      toast.error("兑换码不能为空")
       return
     }
 
+    const normalized = redemptionCode.replace(/\s+/g, "").toUpperCase()
     setIsProcessing(true)
-    // Simulate code validation
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsProcessing(false)
-    onPaymentComplete()
+
+    try {
+      const response = await fetch("/api/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: normalized }),
+      })
+
+      if (!response.ok) {
+        const rawText = await response.text()
+        let errorMessage = "请输入正确的兑换码"
+        try {
+          const errorData = rawText ? JSON.parse(rawText) : {}
+          errorMessage = errorData?.error || errorMessage
+        } catch {
+          if (rawText) errorMessage = rawText
+        }
+        throw new Error(errorMessage)
+      }
+
+      onPaymentComplete()
+      toast.success("解锁成功！", {
+        description: "已解锁完整分析报告",
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "请输入正确的兑换码"
+      toast.error(message)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleOpenXianyu = () => {

@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "gen:codes": "node scripts/generate-redemption-codes.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
