@@ -57,10 +57,8 @@ export function PaymentModal({ isOpen, onClose, onPaymentComplete }: PaymentModa
         throw new Error(errorMessage)
       }
 
+      setRedemptionCode("")
       onPaymentComplete()
-      toast.success("解锁成功！", {
-        description: "已解锁完整分析报告",
-      })
     } catch (error) {
       const message = error instanceof Error ? error.message : "请输入正确的兑换码"
       toast.error(message)
