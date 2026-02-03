@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { HeroSection } from "@/components/crush-decoder/hero-section"
 import { AnalysisResult } from "@/components/crush-decoder/analysis-result"
 import { PaymentModal } from "@/components/crush-decoder/payment-modal"
@@ -13,6 +13,7 @@ const DECODING_STAGES = [
   "正在推演心理...",
 ]
 const DECODING_FINAL_STAGE = "正在生成报告..."
+const DECODING_FINAL_WAIT_STAGE = "正在生成报告…请耐心等待"
 const USE_HELLO_TEST = false
 const MAX_IMAGES = 6
 const MAX_API_IMAGES = 3
@@ -29,6 +30,22 @@ export default function CrushDecoderPage() {
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
+  const waitTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("crush_state_full")
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (parsed?.analysisData) setAnalysisData(parsed.analysisData)
+      if (typeof parsed?.showResult === "boolean") setShowResult(parsed.showResult)
+      if (typeof parsed?.isUnlocked === "boolean") setIsUnlocked(parsed.isUnlocked)
+      if (parsed?.showPaymentModal) setShowPaymentModal(true)
+      sessionStorage.removeItem("crush_state_full")
+    } catch {
+      // ignore
+    }
+  }, [])
 
   const handleImagesUpload = useCallback((files: File[]) => {
     setUploadedFiles((prevFiles) => {
@@ -83,7 +100,15 @@ export default function CrushDecoderPage() {
           setDecodingStage(DECODING_STAGES[i])
           await sleep(1200)
         }
-        if (!cancelled) setDecodingStage(DECODING_FINAL_STAGE)
+        if (!cancelled) {
+          setDecodingStage(DECODING_FINAL_STAGE)
+          if (waitTimeoutRef.current) window.clearTimeout(waitTimeoutRef.current)
+          waitTimeoutRef.current = window.setTimeout(() => {
+            if (!cancelled) {
+              setDecodingStage(DECODING_FINAL_WAIT_STAGE)
+            }
+          }, 3000)
+        }
       })()
 
       let response: Response
@@ -196,6 +221,10 @@ export default function CrushDecoderPage() {
       })
     } finally {
       cancelled = true
+      if (waitTimeoutRef.current) {
+        window.clearTimeout(waitTimeoutRef.current)
+        waitTimeoutRef.current = null
+      }
       setIsDecoding(false)
       setDecodingStage("")
     }
@@ -242,6 +271,19 @@ export default function CrushDecoderPage() {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         onPaymentComplete={handlePaymentComplete}
+        onOpenXianyu={() => {
+          try {
+            const snapshot = {
+              analysisData,
+              showResult,
+              isUnlocked,
+              showPaymentModal: true,
+            }
+            sessionStorage.setItem("crush_state_full", JSON.stringify(snapshot))
+          } catch {
+            // ignore storage errors
+          }
+        }}
       />
 
       {/* Footer */}

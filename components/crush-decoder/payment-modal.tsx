@@ -10,9 +10,10 @@ interface PaymentModalProps {
   isOpen: boolean
   onClose: () => void
   onPaymentComplete: () => void
+  onOpenXianyu?: () => void
 }
 
-const XIANYU_URL = "https://www.goofish.com"
+const XIANYU_URL = "https://m.tb.cn/h.7sFlEwT?tk=QnmyUjjzRss"
 
 const features = [
   "软肋分析 - 找到 TA 的情感弱点",
@@ -23,7 +24,7 @@ const features = [
   "专属总结与行动建议",
 ]
 
-export function PaymentModal({ isOpen, onClose, onPaymentComplete }: PaymentModalProps) {
+export function PaymentModal({ isOpen, onClose, onPaymentComplete, onOpenXianyu }: PaymentModalProps) {
   const [redemptionCode, setRedemptionCode] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -68,7 +69,8 @@ export function PaymentModal({ isOpen, onClose, onPaymentComplete }: PaymentModa
   }
 
   const handleOpenXianyu = () => {
-    window.open(XIANYU_URL, "_blank")
+    onOpenXianyu?.()
+    window.location.href = XIANYU_URL
   }
 
   return (
