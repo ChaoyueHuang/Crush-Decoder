@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Lock, Sparkles, Target, Fish, Search, Shield, Users, FileText } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -49,6 +50,29 @@ const previewSections = [
 ]
 
 export function LockedOverlay({ onUnlock }: LockedOverlayProps) {
+  const [unlockCount, setUnlockCount] = useState(216)
+
+  useEffect(() => {
+    let active = true
+    const fetchCount = async () => {
+      try {
+        const response = await fetch("/api/unlock-count")
+        if (!response.ok) return
+        const data = await response.json()
+        if (active && typeof data?.count === "number") {
+          setUnlockCount(data.count)
+        }
+      } catch {
+        // keep default
+      }
+    }
+
+    fetchCount()
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <div className="relative">
       {/* Blurred Preview Cards - Compact Grid */}
@@ -122,7 +146,7 @@ export function LockedOverlay({ onUnlock }: LockedOverlayProps) {
 
           {/* Trust Badge */}
           <p className="mt-4 text-[10px] text-muted-foreground">
-            已有 12,847 人解锁完整报告
+            已有 {new Intl.NumberFormat("zh-CN").format(unlockCount)} 人解锁完整报告
           </p>
         </div>
       </div>
