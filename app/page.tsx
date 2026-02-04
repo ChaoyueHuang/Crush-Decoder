@@ -33,19 +33,21 @@ export default function CrushDecoderPage() {
   const waitTimeoutRef = useRef<number | null>(null)
   const [deviceId, setDeviceId] = useState<string>("")
 
-  useEffect(() => {
+  const getOrCreateDeviceId = useCallback(() => {
     try {
       const stored = localStorage.getItem("crush_device_id")
-      if (stored) {
-        setDeviceId(stored)
-      } else {
-        const id = crypto.randomUUID()
-        localStorage.setItem("crush_device_id", id)
-        setDeviceId(id)
-      }
+      if (stored) return stored
+      const id = crypto.randomUUID()
+      localStorage.setItem("crush_device_id", id)
+      return id
     } catch {
-      // ignore
+      return ""
     }
+  }, [])
+
+  useEffect(() => {
+    const id = getOrCreateDeviceId()
+    if (id) setDeviceId(id)
 
     try {
       const raw = sessionStorage.getItem("crush_state_full")
@@ -95,6 +97,14 @@ export default function CrushDecoderPage() {
     if (isDecoding) return
     setIsUnlocked(false)
     setShowPaymentModal(false)
+
+    const currentDeviceId = deviceId || getOrCreateDeviceId()
+    if (!currentDeviceId) {
+      toast.error("解码失败", {
+        description: "设备初始化失败，请刷新页面后重试",
+      })
+      return
+    }
     if (!USE_HELLO_TEST && uploadedFiles.length === 0) {
       toast.error("请先上传图片", {
         description: "至少上传 1 张微信朋友圈或小红书截图",
@@ -159,7 +169,7 @@ export default function CrushDecoderPage() {
         response = await fetch("/api/decode", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ images: compressedImages, deviceId }),
+          body: JSON.stringify({ images: compressedImages, deviceId: currentDeviceId }),
         })
       }
 
@@ -242,7 +252,7 @@ export default function CrushDecoderPage() {
       setIsDecoding(false)
       setDecodingStage("")
     }
-  }, [uploadedFiles, isDecoding, deviceId])
+  }, [uploadedFiles, isDecoding, deviceId, getOrCreateDeviceId])
 
   const handleUnlock = useCallback(() => {
     setShowPaymentModal(true)

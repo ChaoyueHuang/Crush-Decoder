@@ -40,10 +40,26 @@ export function PaymentModal({ isOpen, onClose, onPaymentComplete, onOpenXianyu 
     setIsProcessing(true)
 
     try {
+      const currentDeviceId = (() => {
+        try {
+          const stored = localStorage.getItem("crush_device_id")
+          if (stored) return stored
+          const id = crypto.randomUUID()
+          localStorage.setItem("crush_device_id", id)
+          return id
+        } catch {
+          return ""
+        }
+      })()
+
+      if (!currentDeviceId) {
+        throw new Error("设备初始化失败，请刷新页面后重试")
+      }
+
       const response = await fetch("/api/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: normalized, deviceId: localStorage.getItem("crush_device_id") ?? "" }),
+        body: JSON.stringify({ code: normalized, deviceId: currentDeviceId }),
       })
 
       if (!response.ok) {
