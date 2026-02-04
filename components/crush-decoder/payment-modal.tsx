@@ -43,7 +43,7 @@ export function PaymentModal({ isOpen, onClose, onPaymentComplete, onOpenXianyu 
       const response = await fetch("/api/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: normalized }),
+        body: JSON.stringify({ code: normalized, deviceId: localStorage.getItem("crush_device_id") ?? "" }),
       })
 
       if (!response.ok) {

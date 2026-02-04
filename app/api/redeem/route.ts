@@ -1,14 +1,19 @@
 import { buildSupabaseHeaders, supabaseUrl } from "@/lib/supabase-rest"
+import { setString } from "@/lib/upstash-rest"
 
 type RedeemRequest = {
   code?: string
+  deviceId?: string
 }
 
 export async function POST(req: Request) {
   try {
-    const { code } = (await req.json()) as RedeemRequest
+    const { code, deviceId } = (await req.json()) as RedeemRequest
     if (!code || !code.trim()) {
       return Response.json({ error: "兑换码不能为空" }, { status: 400 })
+    }
+    if (!deviceId) {
+      return Response.json({ error: "缺少设备标识" }, { status: 400 })
     }
 
     const normalized = code.replace(/\s+/g, "").toUpperCase()
@@ -55,6 +60,8 @@ export async function POST(req: Request) {
     if (updated.length === 0) {
       return Response.json({ error: "此兑换码已被使用，请更换兑换码" }, { status: 409 })
     }
+
+    await setString(`premium:${deviceId}`, "1")
 
     return Response.json({ success: true })
   } catch (error) {

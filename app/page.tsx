@@ -31,8 +31,22 @@ export default function CrushDecoderPage() {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
   const waitTimeoutRef = useRef<number | null>(null)
+  const [deviceId, setDeviceId] = useState<string>("")
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem("crush_device_id")
+      if (stored) {
+        setDeviceId(stored)
+      } else {
+        const id = crypto.randomUUID()
+        localStorage.setItem("crush_device_id", id)
+        setDeviceId(id)
+      }
+    } catch {
+      // ignore
+    }
+
     try {
       const raw = sessionStorage.getItem("crush_state_full")
       if (!raw) return
@@ -145,7 +159,7 @@ export default function CrushDecoderPage() {
         response = await fetch("/api/decode", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ images: compressedImages }),
+          body: JSON.stringify({ images: compressedImages, deviceId }),
         })
       }
 
@@ -153,7 +167,7 @@ export default function CrushDecoderPage() {
 
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error("请求过于频繁，请稍后再试")
+          throw new Error("您今天的免费试用次数已达上限")
         }
         if (response.status === 503) {
           throw new Error("模型服务暂时不可用，请稍后再试")
@@ -228,7 +242,7 @@ export default function CrushDecoderPage() {
       setIsDecoding(false)
       setDecodingStage("")
     }
-  }, [uploadedFiles, isDecoding])
+  }, [uploadedFiles, isDecoding, deviceId])
 
   const handleUnlock = useCallback(() => {
     setShowPaymentModal(true)
