@@ -4,13 +4,14 @@ import { generateCustomerId } from "@/lib/ghost"
 
 type GhostInitRequest = {
   visitorId?: string
+  deviceKey?: string
 }
 
 export async function POST(req: Request) {
   try {
-    const { visitorId } = (await req.json()) as GhostInitRequest
-    if (!visitorId) {
-      return Response.json({ error: "缺少设备指纹" }, { status: 400 })
+    const { visitorId, deviceKey } = (await req.json()) as GhostInitRequest
+    if (!visitorId || !deviceKey) {
+      return Response.json({ error: "缺少设备标识" }, { status: 400 })
     }
 
     const forwardedFor = req.headers.get("x-forwarded-for") ?? ""
@@ -26,17 +27,42 @@ export async function POST(req: Request) {
     const baseUrl = supabaseUrl()
     const headers = buildSupabaseHeaders()
 
-    const lookupRes = await fetch(
-      `${baseUrl}/rest/v1/ghost_accounts?visitor_id=eq.${encodeURIComponent(visitorId)}&order=created_at.asc&limit=1&select=ghost_id,customer_id`,
-      { headers }
-    )
+    const lookupByDevice = async () =>
+      fetch(
+        `${baseUrl}/rest/v1/ghost_accounts?device_key=eq.${encodeURIComponent(deviceKey)}&order=created_at.asc&limit=1&select=ghost_id,customer_id`,
+        { headers }
+      )
+
+    const lookupByVisitor = async () =>
+      fetch(
+        `${baseUrl}/rest/v1/ghost_accounts?visitor_id=eq.${encodeURIComponent(visitorId)}&order=created_at.asc&limit=1&select=ghost_id,customer_id`,
+        { headers }
+      )
+
+    let lookupRes = await lookupByDevice()
+    if (!lookupRes.ok) {
+      const errorText = await lookupRes.text()
+      if (errorText.includes('column "device_key" does not exist')) {
+        lookupRes = await lookupByVisitor()
+      } else {
+        return Response.json({ error: errorText || "查询幽灵账户失败" }, { status: 500 })
+      }
+    }
 
     if (!lookupRes.ok) {
       const text = await lookupRes.text()
       return Response.json({ error: text || "查询幽灵账户失败" }, { status: 500 })
     }
 
-    const rows = (await lookupRes.json()) as Array<{ ghost_id: string; customer_id: string }>
+    let rows = (await lookupRes.json()) as Array<{ ghost_id: string; customer_id: string }>
+    if (!rows.length) {
+      const fallbackRes = await lookupByVisitor()
+      if (!fallbackRes.ok) {
+        const text = await fallbackRes.text()
+        return Response.json({ error: text || "查询幽灵账户失败" }, { status: 500 })
+      }
+      rows = (await fallbackRes.json()) as Array<{ ghost_id: string; customer_id: string }>
+    }
     let ghostId = rows[0]?.ghost_id
     let customerId = rows[0]?.customer_id
 
@@ -54,6 +80,7 @@ export async function POST(req: Request) {
           ghost_id: ghostId,
           customer_id: customerId,
           visitor_id: visitorId,
+          device_key: deviceKey,
           user_agent: req.headers.get("user-agent") ?? null,
         }),
       })
@@ -78,6 +105,18 @@ export async function POST(req: Request) {
         }),
       })
     } else {
+      await fetch(`${baseUrl}/rest/v1/ghost_accounts?ghost_id=eq.${encodeURIComponent(ghostId)}`, {
+        method: "PATCH",
+        headers: {
+          ...headers,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          visitor_id: visitorId,
+          device_key: deviceKey,
+        }),
+      })
+
       const dopamineLookup = await fetch(
         `${baseUrl}/rest/v1/dopamine_accounts?ghost_id=eq.${encodeURIComponent(ghostId)}&select=ghost_id`,
         { headers }

@@ -36,6 +36,7 @@ export default function CrushDecoderPage() {
   const [ghostId, setGhostId] = useState<string>("")
   const [customerId, setCustomerId] = useState("DA000000")
   const [visitorId, setVisitorId] = useState<string>("")
+  const [deviceKey, setDeviceKey] = useState<string>("")
   const [dopamine, setDopamine] = useState(20)
   const [dopamineDisplay, setDopamineDisplay] = useState(20)
   const [showDopamineModal, setShowDopamineModal] = useState(false)
@@ -47,6 +48,27 @@ export default function CrushDecoderPage() {
   useEffect(() => {
     const initGhost = async () => {
       try {
+        const buildDeviceKey = async () => {
+          const parts = [
+            navigator.platform || "",
+            navigator.deviceMemory?.toString?.() ?? "",
+            navigator.hardwareConcurrency?.toString?.() ?? "",
+            `${window.screen?.width ?? ""}x${window.screen?.height ?? ""}`,
+            window.screen?.colorDepth?.toString?.() ?? "",
+            Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
+            navigator.language || "",
+          ]
+          const raw = parts.join("|")
+          const encoder = new TextEncoder()
+          const data = encoder.encode(raw)
+          const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+          const hashArray = Array.from(new Uint8Array(hashBuffer))
+          return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+        }
+
+        const deviceKeyValue = await buildDeviceKey()
+        setDeviceKey(deviceKeyValue)
+
         const fpjs = await import("@fingerprintjs/fingerprintjs")
         const agent = await fpjs.load()
         const result = await agent.get()
@@ -56,7 +78,7 @@ export default function CrushDecoderPage() {
         const response = await fetch("/api/ghost-init", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ visitorId: vid }),
+          body: JSON.stringify({ visitorId: vid, deviceKey: deviceKeyValue }),
         })
 
         if (response.ok) {

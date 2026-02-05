@@ -46,9 +46,10 @@ export function DopamineHeader({ username, dopamine, onOpenModal }: DopamineHead
       <button
         type="button"
         onClick={handleCopyUsername}
-        className="flex items-center px-3 py-2 hover:bg-secondary/30 rounded-l-xl transition-colors"
+        className="flex flex-col items-start px-3 py-2 hover:bg-secondary/30 rounded-l-xl transition-colors"
       >
-        <span className="text-[10px] font-mono text-muted-foreground">
+        <span className="text-[9px] text-muted-foreground/70 leading-none">ID</span>
+        <span className="text-[10px] font-mono text-muted-foreground leading-tight">
           #{username}
         </span>
       </button>
