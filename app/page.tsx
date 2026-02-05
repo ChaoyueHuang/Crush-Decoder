@@ -50,13 +50,12 @@ export default function CrushDecoderPage() {
       try {
         const buildDeviceKey = async () => {
           const parts = [
-            navigator.platform || "",
-            navigator.deviceMemory?.toString?.() ?? "",
-            navigator.hardwareConcurrency?.toString?.() ?? "",
-            `${window.screen?.width ?? ""}x${window.screen?.height ?? ""}`,
-            window.screen?.colorDepth?.toString?.() ?? "",
-            Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
-            navigator.language || "",
+            navigator.platform || "unknown",
+            `${window.screen?.width ?? 0}x${window.screen?.height ?? 0}`,
+            window.screen?.colorDepth?.toString?.() ?? "0",
+            Intl.DateTimeFormat().resolvedOptions().timeZone ?? "unknown",
+            navigator.language || "unknown",
+            navigator.maxTouchPoints?.toString?.() ?? "0",
           ]
           const raw = parts.join("|")
           const encoder = new TextEncoder()
