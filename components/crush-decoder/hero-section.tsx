@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback } from "react"
 import { Upload, Sparkles, X, Plus, ShieldCheck } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { ThinkingIndicator } from "./thinking-indicator"
 
 interface HeroSectionProps {
@@ -203,20 +202,30 @@ export function HeroSection({
             </p>
 
             {/* Decode Button */}
-            <Button
-              onClick={onDecode}
-              disabled={isDecoding}
-              className="w-full h-12 font-mono text-base font-semibold bg-neon-purple hover:bg-neon-purple/90 text-primary-foreground shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all duration-300 disabled:opacity-70"
+            <div
+              onClick={isDecoding ? undefined : onDecode}
+              className={`w-full h-12 flex items-center rounded-md overflow-hidden shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all duration-300 ${
+                isDecoding ? "opacity-70 cursor-not-allowed" : "cursor-pointer"
+              }`}
             >
-              {isDecoding && decodingStage ? (
-                <ThinkingIndicator stage={decodingStage} />
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5 mr-2" />
-                  解码 Crush
-                </>
+              {/* Main button area */}
+              <div className="flex-1 h-full flex items-center justify-center gap-2 bg-neon-purple hover:bg-neon-purple/90 text-primary-foreground font-mono text-base font-semibold transition-colors">
+                {isDecoding && decodingStage ? (
+                  <ThinkingIndicator stage={decodingStage} />
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    解码 Crush
+                  </>
+                )}
+              </div>
+              {/* Cost indicator */}
+              {!isDecoding && (
+                <div className="h-full px-3 flex items-center bg-neon-purple/70 text-primary-foreground/90 text-xs font-mono whitespace-nowrap">
+                  10mg 多巴胺
+                </div>
               )}
-            </Button>
+            </div>
 
             {/* Privacy Notice */}
             <div className="flex items-start gap-2 p-3 rounded-lg bg-secondary/30 border border-border/50">

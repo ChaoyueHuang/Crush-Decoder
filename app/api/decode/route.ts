@@ -1,5 +1,4 @@
 import { analysisSchema } from "@/lib/analysis-schema"
-import { getString, incrWithExpiry } from "@/lib/upstash-rest"
 import { readFile } from "fs/promises"
 import path from "path"
 
@@ -150,31 +149,13 @@ export async function POST(req: Request) {
       return Response.json({ error: "缺少 OPENROUTER_API_KEY" }, { status: 500 })
     }
 
-    const { images, deviceId } = (await req.json()) as { images?: string[]; deviceId?: string }
+    const { images, visitorId } = (await req.json()) as { images?: string[]; visitorId?: string }
     if (!images || images.length === 0) {
       return Response.json({ error: "未提供图片" }, { status: 400 })
     }
 
-    if (!deviceId) {
-      return Response.json({ error: "缺少设备标识" }, { status: 400 })
-    }
-
-    const forwardedFor = req.headers.get("x-forwarded-for") ?? ""
-    const ip = forwardedFor.split(",")[0]?.trim() || "unknown"
-    const today = new Date()
-    const dayKey = today.toISOString().slice(0, 10)
-    const ttlSeconds = Math.floor(
-      (Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1) - today.getTime()) / 1000
-    )
-
-    const premiumFlag = await getString(`premium:${deviceId}`)
-    const limit = premiumFlag ? 6 : 3
-
-    const deviceCount = await incrWithExpiry(`limit:device:${deviceId}:${dayKey}`, ttlSeconds)
-    const ipCount = await incrWithExpiry(`limit:ip:${ip}:${dayKey}`, ttlSeconds)
-
-    if (deviceCount > limit || ipCount > limit) {
-      return Response.json({ error: "您今天的免费试用次数已达上限" }, { status: 429 })
+    if (!visitorId) {
+      return Response.json({ error: "缺少设备指纹" }, { status: 400 })
     }
 
     const prompt = await readPrompt()

@@ -11,6 +11,7 @@ const inter = localFont({
   ],
   variable: "--font-inter",
   display: "swap",
+  preload: false,
 })
 
 const orbitron = localFont({

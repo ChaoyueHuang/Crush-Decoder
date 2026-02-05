@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import { HeroSection } from "@/components/crush-decoder/hero-section"
+import { DopamineHeader } from "@/components/crush-decoder/dopamine-header"
+import { DopamineModal } from "@/components/crush-decoder/dopamine-modal"
 import { AnalysisResult } from "@/components/crush-decoder/analysis-result"
 import { PaymentModal } from "@/components/crush-decoder/payment-modal"
 import { Toaster, toast } from "sonner"
@@ -31,23 +33,53 @@ export default function CrushDecoderPage() {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
   const waitTimeoutRef = useRef<number | null>(null)
-  const [deviceId, setDeviceId] = useState<string>("")
-
-  const getOrCreateDeviceId = useCallback(() => {
-    try {
-      const stored = localStorage.getItem("crush_device_id")
-      if (stored) return stored
-      const id = crypto.randomUUID()
-      localStorage.setItem("crush_device_id", id)
-      return id
-    } catch {
-      return ""
-    }
-  }, [])
+  const [ghostId, setGhostId] = useState<string>("")
+  const [customerId, setCustomerId] = useState("DA000000")
+  const [visitorId, setVisitorId] = useState<string>("")
+  const [dopamine, setDopamine] = useState(20)
+  const [dopamineDisplay, setDopamineDisplay] = useState(20)
+  const [showDopamineModal, setShowDopamineModal] = useState(false)
+  const [hasClaimedFirstReward, setHasClaimedFirstReward] = useState(true)
+  const [hasClaimedDailyReward, setHasClaimedDailyReward] = useState(false)
+  const [isClaimingFirstReward, setIsClaimingFirstReward] = useState(false)
+  const [isClaimingDailyReward, setIsClaimingDailyReward] = useState(false)
 
   useEffect(() => {
-    const id = getOrCreateDeviceId()
-    if (id) setDeviceId(id)
+    const initGhost = async () => {
+      try {
+        const fpjs = await import("@fingerprintjs/fingerprintjs")
+        const agent = await fpjs.load()
+        const result = await agent.get()
+        const vid = result.visitorId
+        setVisitorId(vid)
+
+        const response = await fetch("/api/ghost-init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visitorId: vid }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data?.ghostId) setGhostId(data.ghostId)
+          if (data?.customerId) setCustomerId(data.customerId)
+        } else {
+          const rawText = await response.text()
+          let message = "当前区域接入信号过载，正在重新分配线路，请等待30秒后重试"
+          try {
+            const errorData = rawText ? JSON.parse(rawText) : {}
+            message = errorData?.error || message
+          } catch {
+            if (rawText) message = rawText
+          }
+          toast.error("初始化失败", { description: message })
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    initGhost()
 
     try {
       const raw = sessionStorage.getItem("crush_state_full")
@@ -62,6 +94,47 @@ export default function CrushDecoderPage() {
       // ignore
     }
   }, [])
+
+  const syncDopamineFromServer = useCallback(async (gid: string) => {
+    try {
+      const response = await fetch("/api/dopamine/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ghostId: gid }),
+      })
+      if (!response.ok) return
+      const data = await response.json()
+      const info = data?.data
+      if (!info) return
+      setDopamine(info.dopamine)
+      setDopamineDisplay(info.dopamine)
+      setHasClaimedFirstReward(info.first_reward_claimed)
+      const today = new Date().toLocaleDateString("en-CA")
+      setHasClaimedDailyReward(info.daily_claim_date === today)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    if (ghostId) {
+      syncDopamineFromServer(ghostId)
+    }
+  }, [ghostId, syncDopamineFromServer])
+
+  const animateDopamineTo = useCallback((target: number) => {
+    const startValue = dopamineDisplay
+    const duration = 600
+    const startTime = performance.now()
+    const step = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1)
+      const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress)
+      const value = Math.round(startValue + (target - startValue) * eased)
+      setDopamineDisplay(value)
+      if (progress < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }, [dopamineDisplay])
 
   const handleImagesUpload = useCallback((files: File[]) => {
     setUploadedFiles((prevFiles) => {
@@ -98,10 +171,10 @@ export default function CrushDecoderPage() {
     setIsUnlocked(false)
     setShowPaymentModal(false)
 
-    const currentDeviceId = deviceId || getOrCreateDeviceId()
-    if (!currentDeviceId) {
+    const currentVisitorId = visitorId
+    if (!currentVisitorId) {
       toast.error("解码失败", {
-        description: "设备初始化失败，请刷新页面后重试",
+        description: "设备指纹初始化失败，请稍后重试",
       })
       return
     }
@@ -169,7 +242,7 @@ export default function CrushDecoderPage() {
         response = await fetch("/api/decode", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ images: compressedImages, deviceId: currentDeviceId }),
+          body: JSON.stringify({ images: compressedImages, visitorId: currentVisitorId }),
         })
       }
 
@@ -234,6 +307,22 @@ export default function CrushDecoderPage() {
         description: "已生成你的 Crush 分析报告",
       })
 
+      if (ghostId) {
+        const spendRes = await fetch("/api/dopamine/spend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ghostId, amount: 10 }),
+        })
+        if (spendRes.ok) {
+          const data = await spendRes.json()
+          const next = data?.data?.dopamine
+          if (typeof next === "number") {
+            setDopamine(next)
+            animateDopamineTo(next)
+          }
+        }
+      }
+
       // Scroll to analysis result after a short delay for render
       setTimeout(() => {
         resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -252,7 +341,7 @@ export default function CrushDecoderPage() {
       setIsDecoding(false)
       setDecodingStage("")
     }
-  }, [uploadedFiles, isDecoding, deviceId, getOrCreateDeviceId])
+  }, [uploadedFiles, isDecoding, visitorId])
 
   const handleUnlock = useCallback(() => {
     setShowPaymentModal(true)
@@ -272,6 +361,12 @@ export default function CrushDecoderPage() {
       <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.03]">
         <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(255,255,255,0.03)_2px,rgba(255,255,255,0.03)_4px)]" />
       </div>
+
+      <DopamineHeader
+        username={customerId}
+        dopamine={dopamineDisplay}
+        onOpenModal={() => setShowDopamineModal(true)}
+      />
 
       {/* Hero Section */}
       <HeroSection
@@ -295,6 +390,7 @@ export default function CrushDecoderPage() {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         onPaymentComplete={handlePaymentComplete}
+        visitorId={visitorId}
         onOpenXianyu={() => {
           try {
             const snapshot = {
@@ -306,6 +402,66 @@ export default function CrushDecoderPage() {
             sessionStorage.setItem("crush_state_full", JSON.stringify(snapshot))
           } catch {
             // ignore storage errors
+          }
+        }}
+      />
+
+      <DopamineModal
+        isOpen={showDopamineModal}
+        onClose={() => setShowDopamineModal(false)}
+        username={customerId}
+        dopamine={dopamine}
+        hasClaimedFirstReward={hasClaimedFirstReward}
+        hasClaimedDailyReward={hasClaimedDailyReward}
+        isClaimingFirst={isClaimingFirstReward}
+        isClaimingDaily={isClaimingDailyReward}
+        onClaimFirst={async () => {
+          if (!ghostId || hasClaimedFirstReward) return
+          setIsClaimingFirstReward(true)
+          try {
+            const res = await fetch("/api/dopamine/claim-first", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ghostId }),
+            })
+            if (res.ok) {
+              const data = await res.json()
+              const next = data?.data?.dopamine
+              if (typeof next === "number") {
+                setDopamine(next)
+                setDopamineDisplay(next)
+                setHasClaimedFirstReward(true)
+                return next
+              }
+            }
+            return null
+          } finally {
+            setIsClaimingFirstReward(false)
+          }
+        }}
+        onClaimDaily={async () => {
+          if (!ghostId || hasClaimedDailyReward) return
+          setIsClaimingDailyReward(true)
+          try {
+            const localDate = new Date().toLocaleDateString("en-CA")
+            const res = await fetch("/api/dopamine/claim-daily", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ghostId, localDate }),
+            })
+            if (res.ok) {
+              const data = await res.json()
+              const next = data?.data?.dopamine
+              if (typeof next === "number") {
+                setDopamine(next)
+                setDopamineDisplay(next)
+                setHasClaimedDailyReward(true)
+                return next
+              }
+            }
+            return null
+          } finally {
+            setIsClaimingDailyReward(false)
           }
         }}
       />

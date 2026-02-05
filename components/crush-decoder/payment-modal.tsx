@@ -11,6 +11,7 @@ interface PaymentModalProps {
   onClose: () => void
   onPaymentComplete: () => void
   onOpenXianyu?: () => void
+  visitorId?: string
 }
 
 const XIANYU_URL = "https://m.tb.cn/h.7sFlEwT?tk=QnmyUjjzRss"
@@ -24,7 +25,13 @@ const features = [
   "专属总结与行动建议",
 ]
 
-export function PaymentModal({ isOpen, onClose, onPaymentComplete, onOpenXianyu }: PaymentModalProps) {
+export function PaymentModal({
+  isOpen,
+  onClose,
+  onPaymentComplete,
+  onOpenXianyu,
+  visitorId,
+}: PaymentModalProps) {
   const [redemptionCode, setRedemptionCode] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -40,26 +47,16 @@ export function PaymentModal({ isOpen, onClose, onPaymentComplete, onOpenXianyu 
     setIsProcessing(true)
 
     try {
-      const currentDeviceId = (() => {
-        try {
-          const stored = localStorage.getItem("crush_device_id")
-          if (stored) return stored
-          const id = crypto.randomUUID()
-          localStorage.setItem("crush_device_id", id)
-          return id
-        } catch {
-          return ""
-        }
-      })()
+      const currentVisitorId = visitorId ?? ""
 
-      if (!currentDeviceId) {
-        throw new Error("设备初始化失败，请刷新页面后重试")
+      if (!currentVisitorId) {
+        throw new Error("设备指纹初始化失败，请稍后重试")
       }
 
       const response = await fetch("/api/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: normalized, deviceId: currentDeviceId }),
+        body: JSON.stringify({ code: normalized, visitorId: currentVisitorId }),
       })
 
       if (!response.ok) {

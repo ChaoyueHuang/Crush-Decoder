@@ -3,17 +3,17 @@ import { setString } from "@/lib/upstash-rest"
 
 type RedeemRequest = {
   code?: string
-  deviceId?: string
+  visitorId?: string
 }
 
 export async function POST(req: Request) {
   try {
-    const { code, deviceId } = (await req.json()) as RedeemRequest
+    const { code, visitorId } = (await req.json()) as RedeemRequest
     if (!code || !code.trim()) {
       return Response.json({ error: "兑换码不能为空" }, { status: 400 })
     }
-    if (!deviceId) {
-      return Response.json({ error: "缺少设备标识" }, { status: 400 })
+    if (!visitorId) {
+      return Response.json({ error: "缺少设备指纹" }, { status: 400 })
     }
 
     const normalized = code.replace(/\s+/g, "").toUpperCase()
@@ -61,7 +61,30 @@ export async function POST(req: Request) {
       return Response.json({ error: "此兑换码已被使用，请更换兑换码" }, { status: 409 })
     }
 
-    await setString(`premium:${deviceId}`, "1")
+    await setString(`premium:${visitorId}`, "1")
+
+    const ghostLookupRes = await fetch(
+      `${baseUrl}/rest/v1/ghost_accounts?visitor_id=eq.${encodeURIComponent(visitorId)}&select=ghost_id`,
+      { headers }
+    )
+    if (ghostLookupRes.ok) {
+      const ghosts = (await ghostLookupRes.json()) as Array<{ ghost_id: string }>
+      const ghostId = ghosts[0]?.ghost_id
+      if (ghostId) {
+        await fetch(`${baseUrl}/rest/v1/redeem_logs`, {
+          method: "POST",
+          headers: {
+            ...headers,
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            ghost_id: ghostId,
+            code: normalized,
+            used_at: new Date().toISOString(),
+          }),
+        })
+      }
+    }
 
     return Response.json({ success: true })
   } catch (error) {
