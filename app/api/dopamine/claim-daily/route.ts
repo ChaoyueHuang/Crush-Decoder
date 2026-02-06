@@ -1,4 +1,5 @@
 import { buildSupabaseHeaders, supabaseUrl } from "@/lib/supabase-rest"
+import { logDopamineEvent } from "@/lib/dopamine-log"
 
 export async function POST(req: Request) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
     const headers = buildSupabaseHeaders()
 
     const lookupRes = await fetch(
-      `${baseUrl}/rest/v1/dopamine_accounts?ghost_id=eq.${encodeURIComponent(ghostId)}&select=dopamine,daily_claim_date`,
+      `${baseUrl}/rest/v1/dopamine_accounts?ghost_id=eq.${encodeURIComponent(ghostId)}&select=dopamine,daily_claim_date,customer_id`,
       { headers }
     )
 
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
       return Response.json({ error: text || "查询失败" }, { status: 500 })
     }
 
-    const rows = (await lookupRes.json()) as Array<{ dopamine: number; daily_claim_date: string | null }>
+    const rows = (await lookupRes.json()) as Array<{ dopamine: number; daily_claim_date: string | null; customer_id: string }>
     if (!rows.length) {
       return Response.json({ error: "未找到账号" }, { status: 404 })
     }
@@ -57,6 +58,14 @@ export async function POST(req: Request) {
     if (!updated.length) {
       return Response.json({ error: "更新失败" }, { status: 500 })
     }
+
+    await logDopamineEvent({
+      ghostId,
+      customerId: rows[0].customer_id,
+      amount: 10,
+      direction: "earn",
+      scene: "每日注射任务",
+    })
 
     return Response.json({ data: updated[0] })
   } catch (error) {
