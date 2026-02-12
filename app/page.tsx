@@ -8,6 +8,7 @@ import { AnalysisResult } from "@/components/crush-decoder/analysis-result"
 import { PaymentModal } from "@/components/crush-decoder/payment-modal"
 import { Toaster, toast } from "sonner"
 import { analysisSchema, type AnalysisData } from "@/lib/analysis-schema"
+import { createBrowserSupabaseClient } from "@/lib/supabase-client"
 
 const DECODING_STAGES = [
   "AI 正在阅读...",
@@ -44,6 +45,10 @@ export default function CrushDecoderPage() {
   const [hasClaimedDailyReward, setHasClaimedDailyReward] = useState(false)
   const [isClaimingFirstReward, setIsClaimingFirstReward] = useState(false)
   const [isClaimingDailyReward, setIsClaimingDailyReward] = useState(false)
+  const [inviteCount, setInviteCount] = useState(0)
+  const [invitedBy, setInvitedBy] = useState<string | null>(null)
+  const lastInviteLogIdRef = useRef<string | null>(null)
+  const suppressInviteToastUntilRef = useRef<number>(0)
 
   useEffect(() => {
     const initGhost = async () => {
@@ -74,16 +79,20 @@ export default function CrushDecoderPage() {
         const vid = result.visitorId
         setVisitorId(vid)
 
+        const localDate = new Date().toLocaleDateString("en-CA")
         const response = await fetch("/api/ghost-init", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ visitorId: vid, deviceKey: deviceKeyValue }),
+          body: JSON.stringify({ visitorId: vid, deviceKey: deviceKeyValue, localDate }),
         })
 
         if (response.ok) {
           const data = await response.json()
           if (data?.ghostId) setGhostId(data.ghostId)
           if (data?.customerId) setCustomerId(data.customerId)
+          if (data?.selfInvite) {
+            toast.error("你不能邀请自己接入新节点")
+          }
         } else {
           const rawText = await response.text()
           let message = "当前区域接入信号过载，正在重新分配线路，请等待30秒后重试"
@@ -118,10 +127,11 @@ export default function CrushDecoderPage() {
 
   const syncDopamineFromServer = useCallback(async (gid: string) => {
     try {
+      const localDate = new Date().toLocaleDateString("en-CA")
       const response = await fetch("/api/dopamine/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ghostId: gid }),
+        body: JSON.stringify({ ghostId: gid, localDate }),
       })
       if (!response.ok) return
       const data = await response.json()
@@ -132,6 +142,18 @@ export default function CrushDecoderPage() {
       setHasClaimedFirstReward(info.first_reward_claimed)
       const today = new Date().toLocaleDateString("en-CA")
       setHasClaimedDailyReward(info.daily_claim_date === today)
+      setInviteCount(info.invite_count_today ?? 0)
+      setInvitedBy(info.invited_by ?? null)
+      try {
+        const todayKey = `invite_count_today_${today}`
+        const prev = Number(localStorage.getItem(todayKey) || "0")
+        if (info.invite_count_today > prev && Date.now() > suppressInviteToastUntilRef.current) {
+          toast.success("新节点接入，多巴胺+30mg")
+        }
+        localStorage.setItem(todayKey, String(info.invite_count_today ?? 0))
+      } catch {
+        // ignore storage errors
+      }
     } catch {
       // ignore
     }
@@ -140,6 +162,49 @@ export default function CrushDecoderPage() {
   useEffect(() => {
     if (ghostId) {
       syncDopamineFromServer(ghostId)
+    }
+  }, [ghostId, syncDopamineFromServer])
+
+  useEffect(() => {
+    if (!ghostId) return
+
+    const client = createBrowserSupabaseClient()
+    if (!client) return
+
+    let isSubscribed = false
+    const channel = client
+      .channel(`referral_logs_${ghostId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "referral_logs",
+          filter: `inviter_ghost_id=eq.${ghostId}`,
+        },
+        (payload) => {
+          const logId = (payload.new as { id?: string }).id ?? null
+          if (logId && lastInviteLogIdRef.current === logId) return
+          lastInviteLogIdRef.current = logId
+          suppressInviteToastUntilRef.current = Date.now() + 5000
+          syncDopamineFromServer(ghostId)
+          toast.success("新节点接入，多巴胺+30mg")
+        }
+      )
+      .subscribe((status) => {
+        isSubscribed = status === "SUBSCRIBED"
+      })
+
+    const pollTimer = window.setInterval(() => {
+      if (!ghostId) return
+      if (!isSubscribed) {
+        syncDopamineFromServer(ghostId)
+      }
+    }, 6000)
+
+    return () => {
+      window.clearInterval(pollTimer)
+      client.removeChannel(channel)
     }
   }, [ghostId, syncDopamineFromServer])
 
@@ -432,6 +497,8 @@ export default function CrushDecoderPage() {
         onClose={() => setShowDopamineModal(false)}
         username={customerId}
         dopamine={dopamine}
+        inviteCount={inviteCount}
+        invitedBy={invitedBy}
         hasClaimedFirstReward={hasClaimedFirstReward}
         hasClaimedDailyReward={hasClaimedDailyReward}
         isClaimingFirst={isClaimingFirstReward}

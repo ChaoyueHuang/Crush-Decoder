@@ -123,3 +123,39 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  40% { transform: translateX(100%); }
+  50% { transform: translateX(100%); }
+  90% { transform: translateX(-100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.shimmer-animate {
+  animation: shimmer 4s ease-in-out infinite;
+}
+
+.shimmer-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 250%;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.25) 50%, transparent 100%);
+  opacity: 0.9;
+  z-index: 0;
+  animation: shimmer 4s ease-in-out infinite;
+}
+
+.shimmer-button > * {
+  position: relative;
+  z-index: 1;
+}

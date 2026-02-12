@@ -177,51 +177,64 @@ export async function POST(req: Request) {
       stream: true,
     }
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    const callModelOnce = async () => {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+      const apiResponse = await fetchWithRetry(OPENROUTER_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
 
-    const apiResponse = await fetchWithRetry(OPENROUTER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    })
-    clearTimeout(timeoutId)
+      if (!apiResponse.ok) {
+        const errorText = await apiResponse.text()
+        if (apiResponse.status === 429) {
+          return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 })
+        }
+        if (apiResponse.status === 503) {
+          return Response.json({ error: "模型服务暂时不可用，请稍后再试" }, { status: 503 })
+        }
+        if (apiResponse.status === 524) {
+          return Response.json({ error: "模型响应超时，请稍后再试或减少图片数量" }, { status: 524 })
+        }
+        return Response.json({ error: errorText || "模型请求失败" }, { status: apiResponse.status })
+      }
 
-    if (!apiResponse.ok) {
-      const errorText = await apiResponse.text()
-      if (apiResponse.status === 429) {
-        return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 })
+      const message = await readStreamedContent(apiResponse)
+      if (!message) {
+        return Response.json({ error: "模型未返回有效内容" }, { status: 500 })
       }
-      if (apiResponse.status === 503) {
-        return Response.json({ error: "模型服务暂时不可用，请稍后再试" }, { status: 503 })
-      }
-      if (apiResponse.status === 524) {
-        return Response.json({ error: "模型响应超时，请稍后再试或减少图片数量" }, { status: 524 })
-      }
-      return Response.json({ error: errorText || "模型请求失败" }, { status: apiResponse.status })
+
+      return message
     }
 
-    const message = await readStreamedContent(apiResponse)
-    if (!message) {
-      return Response.json({ error: "模型未返回有效内容" }, { status: 500 })
-    }
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const messageOrResponse = await callModelOnce()
+      if (typeof messageOrResponse !== "string") {
+        return messageOrResponse
+      }
 
-    let jsonText = extractJsonFromText(message)
-    let parsedJson: unknown
-    let parsed = analysisSchema.safeParse(null)
+      const message = messageOrResponse
+      let jsonText = extractJsonFromText(message)
+      let parsedJson: unknown
+      let parsed = analysisSchema.safeParse(null)
 
-    try {
-      parsedJson = JSON.parse(jsonText)
-      parsed = analysisSchema.safeParse(parsedJson)
-    } catch {
-      parsed = analysisSchema.safeParse(null)
-    }
+      try {
+        parsedJson = JSON.parse(jsonText)
+        parsed = analysisSchema.safeParse(parsedJson)
+      } catch {
+        parsed = analysisSchema.safeParse(null)
+      }
 
-    if (!parsed.success) {
+      if (parsed.success) {
+        return Response.json({ data: parsed.data })
+      }
+
       const repairedText = await requestJsonRepair(message)
       if (repairedText) {
         const repairedJsonText = extractJsonFromText(repairedText)
@@ -236,10 +249,12 @@ export async function POST(req: Request) {
         }
       }
 
-      return Response.json({ error: "返回数据结构不符合要求", details: parsed.error.flatten() }, { status: 400 })
+      if (attempt === 1) {
+        return Response.json({ error: "返回数据结构不符合要求", details: parsed.error.flatten() }, { status: 400 })
+      }
     }
 
-    return Response.json({ data: parsed.data })
+    return Response.json({ error: "返回数据结构不符合要求" }, { status: 400 })
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       return Response.json({ error: "模型响应超时，请稍后再试或减少图片数量" }, { status: 524 })
