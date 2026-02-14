@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { HeroSection } from "@/components/crush-decoder/hero-section"
 import { DopamineHeader } from "@/components/crush-decoder/dopamine-header"
 import { DopamineModal } from "@/components/crush-decoder/dopamine-modal"
+import { DopamineInsufficientModal } from "@/components/crush-decoder/dopamine-insufficient-modal"
 import { AnalysisResult } from "@/components/crush-decoder/analysis-result"
 import { PaymentModal } from "@/components/crush-decoder/payment-modal"
 import { Toaster, toast } from "sonner"
@@ -49,6 +50,8 @@ export default function CrushDecoderPage() {
   const [invitedBy, setInvitedBy] = useState<string | null>(null)
   const lastInviteLogIdRef = useRef<string | null>(null)
   const suppressInviteToastUntilRef = useRef<number>(0)
+  const [showDopamineInsufficient, setShowDopamineInsufficient] = useState(false)
+  const [dopamineRequired, setDopamineRequired] = useState(0)
 
   useEffect(() => {
     const initGhost = async () => {
@@ -169,31 +172,33 @@ export default function CrushDecoderPage() {
     if (!ghostId) return
 
     const client = createBrowserSupabaseClient()
-    if (!client) return
-
     let isSubscribed = false
-    const channel = client
-      .channel(`referral_logs_${ghostId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "referral_logs",
-          filter: `inviter_ghost_id=eq.${ghostId}`,
-        },
-        (payload) => {
-          const logId = (payload.new as { id?: string }).id ?? null
-          if (logId && lastInviteLogIdRef.current === logId) return
-          lastInviteLogIdRef.current = logId
-          suppressInviteToastUntilRef.current = Date.now() + 5000
-          syncDopamineFromServer(ghostId)
-          toast.success("新节点接入，多巴胺+30mg")
-        }
-      )
-      .subscribe((status) => {
-        isSubscribed = status === "SUBSCRIBED"
-      })
+    let channel: ReturnType<NonNullable<typeof client>["channel"]> | null = null
+
+    if (client) {
+      channel = client
+        .channel(`referral_logs_${ghostId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "referral_logs",
+            filter: `inviter_ghost_id=eq.${ghostId}`,
+          },
+          (payload) => {
+            const logId = (payload.new as { id?: string }).id ?? null
+            if (logId && lastInviteLogIdRef.current === logId) return
+            lastInviteLogIdRef.current = logId
+            suppressInviteToastUntilRef.current = Date.now() + 5000
+            syncDopamineFromServer(ghostId)
+            toast.success("新节点接入，多巴胺+30mg")
+          }
+        )
+        .subscribe((status) => {
+          isSubscribed = status === "SUBSCRIBED"
+        })
+    }
 
     const pollTimer = window.setInterval(() => {
       if (!ghostId) return
@@ -204,7 +209,9 @@ export default function CrushDecoderPage() {
 
     return () => {
       window.clearInterval(pollTimer)
-      client.removeChannel(channel)
+      if (client && channel) {
+        client.removeChannel(channel)
+      }
     }
   }, [ghostId, syncDopamineFromServer])
 
@@ -467,9 +474,57 @@ export default function CrushDecoderPage() {
       {/* Analysis Result */}
       {showResult && (
         <div ref={resultRef}>
-          <AnalysisResult onUnlock={handleUnlock} isUnlocked={isUnlocked} analysisData={analysisData ?? undefined} />
+          <AnalysisResult
+            onUnlock={handleUnlock}
+            isUnlocked={isUnlocked}
+            analysisData={analysisData ?? undefined}
+            dopamine={dopamine}
+            onConsumeDopamine={(amount) => {
+              if (dopamine < amount) {
+                setDopamineRequired(amount)
+                setShowDopamineInsufficient(true)
+                return
+              }
+              if (!ghostId) return
+              fetch("/api/dopamine/spend", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ghostId, amount }),
+              })
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => {
+                  const next = data?.data?.dopamine
+                  if (typeof next === "number") {
+                    setDopamine(next)
+                    animateDopamineTo(next)
+                  }
+                })
+                .catch(() => {
+                  // ignore
+                })
+            }}
+            onInsufficientDopamine={(required) => {
+              setDopamineRequired(required)
+              setShowDopamineInsufficient(true)
+            }}
+          />
         </div>
       )}
+
+      <DopamineInsufficientModal
+        isOpen={showDopamineInsufficient}
+        onClose={() => setShowDopamineInsufficient(false)}
+        currentDopamine={dopamine}
+        requiredDopamine={dopamineRequired}
+        onOpenSupply={() => {
+          setShowDopamineInsufficient(false)
+          setShowDopamineModal(true)
+        }}
+        onOpenPayment={() => {
+          setShowDopamineInsufficient(false)
+          setShowPaymentModal(true)
+        }}
+      />
 
       {/* Payment Modal */}
       <PaymentModal

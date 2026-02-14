@@ -301,7 +301,7 @@ export function DopamineModal({
         {/* Footer hint */}
         <div className="px-6 pb-6 pt-2">
           <p className="text-[10px] text-muted-foreground text-center">
-            多巴胺可用于基础分析
+            多巴胺可用于基础分析和试看高级分析模块
           </p>
         </div>
       </div>

@@ -23,6 +23,9 @@ import type { AnalysisData } from "@/lib/analysis-schema"
 interface AnalysisResultProps {
   onUnlock: () => void
   isUnlocked: boolean
+  dopamine: number
+  onConsumeDopamine: (amount: number) => void
+  onInsufficientDopamine: (required: number) => void
   analysisData?: AnalysisData
 }
 
@@ -347,7 +350,14 @@ const buildViewData = (analysis: AnalysisData) => {
   return { personalityData, mbtiData, psychologyData, premiumData }
 }
 
-export function AnalysisResult({ onUnlock, isUnlocked, analysisData }: AnalysisResultProps) {
+export function AnalysisResult({
+  onUnlock,
+  isUnlocked,
+  dopamine,
+  onConsumeDopamine,
+  onInsufficientDopamine,
+  analysisData,
+}: AnalysisResultProps) {
   const analysis = analysisData ?? mockAnalysis
   const { personalityData, mbtiData, psychologyData, premiumData } = buildViewData(analysis)
   const reportRef = useRef<HTMLDivElement>(null)
@@ -406,11 +416,16 @@ export function AnalysisResult({ onUnlock, isUnlocked, analysisData }: AnalysisR
 
         {/* Premium Section Header */}
         <div className="pt-2">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-2">
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-neon-purple/30 to-transparent" />
             <span className="text-xs font-mono text-neon-purple tracking-wider">高级分析</span>
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-neon-purple/30 to-transparent" />
           </div>
+          {!isUnlocked && (
+            <p className="text-[10px] text-muted-foreground text-center mb-4">
+              试读机会：1/1（任选其一）
+            </p>
+          )}
 
           {isUnlocked ? (
             <div className="space-y-4">
@@ -433,7 +448,48 @@ export function AnalysisResult({ onUnlock, isUnlocked, analysisData }: AnalysisR
               <SummaryAdvice {...premiumData.summary} />
             </div>
           ) : (
-            <LockedOverlay onUnlock={onUnlock} />
+            <LockedOverlay
+              onUnlock={onUnlock}
+              dopamine={dopamine}
+              onConsumeDopamine={onConsumeDopamine}
+              onInsufficient={onInsufficientDopamine}
+              premiumData={{
+                weaknesses: analysis.analysis.potential_weaknesses.map((item) => ({
+                  weakness: item.weakness,
+                  analysis: item.analysis,
+                })),
+                authenticity: {
+                  score: analysis.analysis.authenticity_assessment[0]?.score ?? 0,
+                  risk: analysis.analysis.authenticity_assessment[0]?.fishing_risk ?? "低",
+                  positives: analysis.analysis.authenticity_assessment
+                    .map((item) => item.persona_check_positive)
+                    .filter(Boolean) as string[],
+                  negatives: analysis.analysis.authenticity_assessment
+                    .map((item) => ("persona_check_negative" in item ? item.persona_check_negative : undefined))
+                    .filter(Boolean) as string[],
+                },
+                contradictions: analysis.analysis.contradiction_check.map((item) => ({
+                  name: item.name,
+                  details: item.details,
+                  summary: item.summary,
+                })),
+                defenses: analysis.analysis.defense_mechanism.map((item) => ({
+                  name: item.name,
+                  analysis: item.analysis,
+                  suggestion: item.suggestion,
+                })),
+                hunterPrey: {
+                  hunter: analysis.analysis.comparative_analysis.attraction_target,
+                  prey: analysis.analysis.comparative_analysis.vulnerability_target,
+                  dynamic: analysis.analysis.summary_and_advice.essence_summary,
+                },
+                summary: {
+                  essence: analysis.analysis.summary_and_advice.essence_summary,
+                  suggestions: analysis.analysis.summary_and_advice.suggestions,
+                  finalNote: analysis.analysis.final_note.note,
+                },
+              }}
+            />
           )}
         </div>
       </div>

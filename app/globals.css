@@ -169,6 +169,10 @@
   100% { transform: translateX(-100%); }
 }
 
+.shimmer-animate {
+  animation: shimmer 4s ease-in-out infinite;
+}
+
 .shimmer-button {
   position: relative;
   overflow: hidden;
@@ -191,6 +195,18 @@
 .shimmer-button > * {
   position: relative;
   z-index: 1;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.frost-noise {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.15'/></svg>");
+  background-size: 120px 120px;
 }
 
 /* Glitch Effect */

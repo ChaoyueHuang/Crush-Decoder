@@ -1,56 +1,130 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Lock, Sparkles, Target, Fish, Search, Shield, Users, FileText } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Target,
+  Fish,
+  Search,
+  Shield,
+  Users,
+  FileText,
+  Sparkles,
+  ArrowUpCircle,
+  Check,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
+import { DopamineIcon } from "./dopamine-header"
 
 interface LockedOverlayProps {
   onUnlock: () => void
+  dopamine: number
+  onConsumeDopamine: (amount: number) => void
+  onInsufficient: (required: number) => void
+  premiumData: {
+    weaknesses: Array<{ weakness: string; analysis: string }>
+    authenticity: { score: number; risk: string; positives: string[]; negatives: string[] }
+    contradictions: Array<{ name: string; details: string; summary: string }>
+    defenses: Array<{ name: string; analysis: string; suggestion: string }>
+    hunterPrey: { hunter: string; prey: string; dynamic: string }
+    summary: { essence: string; suggestions: string[]; finalNote: string }
+  }
 }
 
-// Blurred preview content to entice users
-const previewSections = [
-  {
-    icon: Target,
-    title: "软肋分析",
-    color: "text-neon-pink",
-    preview: ["情感需求: TA 特别在意被认可和理解...", "社交偏好: 喜欢小圈子深度交流...", "决策模式: 倾向于感性决策..."],
-  },
-  {
-    icon: Fish,
-    title: "真实性评估 & 钓鱼检测",
-    color: "text-neon-cyan",
-    preview: ["真实性评分: 87/100", "钓鱼风险: 低", "朋友圈内容风格一致，无明显人设痕迹..."],
-  },
-  {
-    icon: Search,
-    title: "矛盾点验证",
-    color: "text-yellow-400",
-    preview: ["独立 vs 依赖: 虽然展现独立形象...", "理性 vs 感性: 声称讨厌drama...", "社交 vs 独处: 频繁晒聚会但也常发..."],
-  },
-  {
-    icon: Shield,
-    title: "防御机制分析",
-    color: "text-neon-purple",
-    preview: ["幽默化解: 用轻松幽默的方式回避...", "忙碌屏障: 以忙碌为由保持距离...", "模糊回应: 对敏感问题给出..."],
-  },
-  {
-    icon: Users,
-    title: "对比分析：猎手与猎物",
-    color: "text-neon-cyan",
-    preview: ["你（猎手）: 主动追求者、目标明确...", "TA（猎物）: 被动等待者、享受被追求...", "关系动态: 目前你处于主动位置..."],
-  },
-  {
-    icon: FileText,
-    title: "总结与建议",
-    color: "text-neon-purple",
-    preview: ["综合分析: 你的 Crush 是一个...", "行动建议: 保持真诚，避免过度表演...", "最后寄语: 爱情需要时间培育..."],
-  },
-]
+const TRIAL_COST = 50
 
-export function LockedOverlay({ onUnlock }: LockedOverlayProps) {
+export function LockedOverlay({ onUnlock, dopamine, onConsumeDopamine, onInsufficient, premiumData }: LockedOverlayProps) {
+  const [unlockedIndex, setUnlockedIndex] = useState<number | null>(null)
+  const hasUsedTrial = unlockedIndex !== null
   const [unlockCount, setUnlockCount] = useState(216)
+
+  const modules = [
+    {
+      icon: Target,
+      title: "软肋分析",
+      color: "text-neon-pink",
+      borderColor: "border-neon-pink/50",
+      glowColor: "shadow-[0_0_20px_rgba(236,72,153,0.3)]",
+      bgColor: "from-neon-pink/10 to-transparent",
+      preview: premiumData.weaknesses.map((item) => `${item.weakness}: ${item.analysis}`).slice(0, 3),
+      full: premiumData.weaknesses.map((item) => `${item.weakness}: ${item.analysis}`),
+    },
+    {
+      icon: Fish,
+      title: "钓鱼检测",
+      color: "text-neon-cyan",
+      borderColor: "border-neon-cyan/50",
+      glowColor: "shadow-[0_0_20px_rgba(0,255,255,0.3)]",
+      bgColor: "from-neon-cyan/10 to-transparent",
+      preview: [
+        `真实性评分: ${premiumData.authenticity.score}/100 | 钓鱼风险: ${premiumData.authenticity.risk}`,
+        ...(premiumData.authenticity.positives.slice(0, 2).length
+          ? premiumData.authenticity.positives.slice(0, 2)
+          : premiumData.authenticity.negatives.slice(0, 2)),
+      ].slice(0, 3),
+      full: [
+        `真实性评分: ${premiumData.authenticity.score}/100 | 钓鱼风险: ${premiumData.authenticity.risk}`,
+        ...premiumData.authenticity.positives,
+        ...premiumData.authenticity.negatives,
+      ].filter(Boolean),
+    },
+    {
+      icon: Search,
+      title: "矛盾点验证",
+      color: "text-yellow-400",
+      borderColor: "border-yellow-400/50",
+      glowColor: "shadow-[0_0_20px_rgba(250,204,21,0.3)]",
+      bgColor: "from-yellow-400/10 to-transparent",
+      preview: premiumData.contradictions.map((item) => `${item.name}: ${item.details}`).slice(0, 3),
+      full: premiumData.contradictions.map((item) => `${item.name}: ${item.summary}`),
+    },
+    {
+      icon: Shield,
+      title: "防御机制",
+      color: "text-neon-purple",
+      borderColor: "border-neon-purple/50",
+      glowColor: "shadow-[0_0_20px_rgba(168,85,247,0.3)]",
+      bgColor: "from-neon-purple/10 to-transparent",
+      preview: premiumData.defenses.map((item) => `${item.name}: ${item.analysis}`).slice(0, 3),
+      full: premiumData.defenses.map((item) => `${item.name}: ${item.suggestion}`),
+    },
+    {
+      icon: Users,
+      title: "猎手与猎物",
+      color: "text-emerald-400",
+      borderColor: "border-emerald-400/50",
+      glowColor: "shadow-[0_0_20px_rgba(52,211,153,0.3)]",
+      bgColor: "from-emerald-400/10 to-transparent",
+      preview: [
+        `TA 作为猎手: ${premiumData.hunterPrey.hunter}`,
+        `TA 作为猎物: ${premiumData.hunterPrey.prey}`,
+        `关系动态: ${premiumData.hunterPrey.dynamic}`,
+      ],
+      full: [
+        `TA 作为猎手: ${premiumData.hunterPrey.hunter}`,
+        `TA 作为猎物: ${premiumData.hunterPrey.prey}`,
+        `关系动态: ${premiumData.hunterPrey.dynamic}`,
+      ],
+    },
+    {
+      icon: FileText,
+      title: "总结与建议",
+      color: "text-amber-400",
+      borderColor: "border-amber-400/50",
+      glowColor: "shadow-[0_0_20px_rgba(251,191,36,0.3)]",
+      bgColor: "from-amber-400/10 to-transparent",
+      preview: [
+        `综合分析: ${premiumData.summary.essence}`,
+        premiumData.summary.suggestions[0] ? `行动建议: ${premiumData.summary.suggestions[0]}` : "",
+        `最后寄语: ${premiumData.summary.finalNote}`,
+      ].filter(Boolean),
+      full: [
+        `综合分析: ${premiumData.summary.essence}`,
+        ...premiumData.summary.suggestions.map((text) => `行动建议: ${text}`),
+        `最后寄语: ${premiumData.summary.finalNote}`,
+      ],
+    },
+  ]
 
   useEffect(() => {
     let active = true
@@ -73,82 +147,133 @@ export function LockedOverlay({ onUnlock }: LockedOverlayProps) {
     }
   }, [])
 
+  const handleTrial = (index: number) => {
+    if (dopamine < TRIAL_COST) {
+      onInsufficient(TRIAL_COST)
+      return
+    }
+    onConsumeDopamine(TRIAL_COST)
+    setUnlockedIndex(index)
+    toast.success("试读已解锁", {
+      description: `消耗 ${TRIAL_COST}mg 多巴胺`,
+    })
+  }
+
   return (
-    <div className="relative">
-      {/* Blurred Preview Cards - Compact Grid */}
-      <div className="grid grid-cols-2 gap-2 select-none">
-        {previewSections.map((section, index) => {
-          const IconComponent = section.icon
+    <div className="space-y-4">
+      {/* Tasting Mode Grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {modules.map((mod, index) => {
+          const IconComponent = mod.icon
+          const isUnlocked = unlockedIndex === index
+
           return (
-            <Card key={index} className="border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
-              <CardHeader className="py-2 px-3">
-                <CardTitle className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <IconComponent className={`w-3 h-3 ${section.color}`} />
-                  {section.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="relative px-3 pb-2 pt-0">
-                <div className="space-y-1 blur-[3px] opacity-70">
-                  {section.preview.slice(0, 2).map((text, i) => (
-                    <p key={i} className="text-[10px] text-foreground/80 truncate">
-                      {text}
-                    </p>
-                  ))}
+            <div
+              key={index}
+              className={`relative rounded-xl overflow-hidden transition-all duration-500 ${
+                isUnlocked
+                  ? `${mod.borderColor} border ${mod.glowColor}`
+                  : "border border-border/40"
+              }`}
+            >
+              {/* Card background */}
+              <div className={`bg-zinc-900/50 backdrop-blur-sm p-3 h-full flex flex-col ${
+                isUnlocked ? `bg-gradient-to-b ${mod.bgColor}` : ""
+              }`}>
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`p-1.5 rounded-lg ${isUnlocked ? "bg-background/30" : "bg-secondary/30"}`}>
+                    <IconComponent className={`w-3.5 h-3.5 ${mod.color}`} />
+                  </div>
+                  <span className="text-xs font-medium text-foreground truncate">{mod.title}</span>
+                  {isUnlocked && (
+                    <Check className="w-3.5 h-3.5 text-emerald-400 ml-auto shrink-0" />
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+
+                {/* Body */}
+                <div className="flex-1 relative min-h-[52px]">
+                  {isUnlocked ? (
+                    <div className="space-y-1.5">
+                      {mod.full.map((text, i) => (
+                        <p key={i} className="text-[10px] text-foreground/80 leading-relaxed">
+                          {text}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p
+                      className="text-[10px] text-white/70 leading-relaxed line-clamp-3"
+                      style={{
+                        maskImage: "linear-gradient(to bottom, black 0%, black 30%, transparent 95%)",
+                        WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 30%, transparent 95%)",
+                      }}
+                    >
+                      {mod.preview.slice(0, 3).join(" ")}
+                    </p>
+                  )}
+                </div>
+
+                {!isUnlocked && (
+                  <div className="relative mt-1">
+                    <div
+                      className="absolute -inset-x-3 -top-4 -bottom-3 backdrop-blur-[6px]"
+                      style={{
+                        maskImage: "linear-gradient(to bottom, transparent 0%, black 50%)",
+                        WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 50%)",
+                      }}
+                    />
+                    <div
+                      className="absolute -inset-x-3 -top-2 -bottom-3 opacity-[0.03]"
+                      style={{
+                        backgroundImage:
+                          "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
+                        backgroundSize: "128px 128px",
+                      }}
+                    />
+
+                    <div className="relative z-10 pt-2">
+                      {!hasUsedTrial ? (
+                        <button
+                          type="button"
+                          onClick={() => handleTrial(index)}
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-zinc-950/80 border border-teal-500/60 text-teal-400 text-[10px] font-medium shadow-[inset_0_1px_1px_rgba(255,255,255,0.04)] hover:border-teal-400 hover:bg-zinc-900/90 transition-all active:scale-[0.98]"
+                        >
+                          <DopamineIcon className="w-3.5 h-3.5" />
+                          <span>50mg 解锁此模块</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={onUnlock}
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-zinc-950/80 border border-neon-purple/40 text-neon-purple/80 text-[10px] font-medium shadow-[inset_0_1px_1px_rgba(255,255,255,0.04)] hover:border-neon-purple/60 hover:bg-zinc-900/90 transition-all active:scale-[0.98]"
+                        >
+                          <ArrowUpCircle className="w-3 h-3" />
+                          <span>升级解锁</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           )
         })}
       </div>
 
-      {/* Glassmorphism Overlay - Lighter blur */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/50 to-background/80 backdrop-blur-[1px] flex items-center justify-center">
-        <div className="text-center px-6 py-8">
-          {/* Lock Icon with Glow */}
-          <div className="relative inline-flex mb-4">
-            <div className="absolute inset-0 bg-neon-purple/30 rounded-full blur-xl animate-pulse" />
-            <div className="relative p-4 rounded-full bg-card/80 border border-neon-purple/50 shadow-[0_0_30px_rgba(168,85,247,0.3)]">
-              <Lock className="w-8 h-8 text-neon-purple" />
-            </div>
-          </div>
-
-          {/* Title */}
-          <h3 className="text-xl font-bold text-foreground mb-2">
-            解锁高级分析报告
-          </h3>
-          
-          {/* Description */}
-          <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto leading-relaxed">
-            获取完整的软肋分析、真实性评估、防御机制等 6 大深度洞察模块
-          </p>
-
-          {/* Feature Tags */}
-          <div className="flex flex-wrap justify-center gap-2 mb-6">
-            {["软肋分析", "钓鱼检测", "矛盾验证", "防御机制", "猎人猎物分析", "专属建议"].map((tag) => (
-              <span
-                key={tag}
-                className="px-2 py-1 text-[10px] font-medium rounded-full bg-neon-purple/10 border border-neon-purple/30 text-neon-purple"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* CTA Button */}
-          <Button
-            onClick={onUnlock}
-            size="lg"
-            className="bg-neon-purple hover:bg-neon-purple/90 text-primary-foreground font-semibold shadow-[0_0_25px_rgba(168,85,247,0.5)] hover:shadow-[0_0_40px_rgba(168,85,247,0.7)] transition-all duration-300 px-8"
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            升级解锁 · ¥9.9
-          </Button>
-
-          {/* Trust Badge */}
-          <p className="mt-4 text-[10px] text-muted-foreground">
-            已有 {new Intl.NumberFormat("zh-CN").format(unlockCount)} 人解锁完整报告
-          </p>
-        </div>
+      {/* Global CTA */}
+      <div className="relative">
+        <Button
+          onClick={onUnlock}
+          className="relative w-full h-12 bg-neon-purple hover:bg-neon-purple/90 text-primary-foreground font-semibold shadow-[0_0_25px_rgba(168,85,247,0.4)] hover:shadow-[0_0_40px_rgba(168,85,247,0.6)] transition-all duration-300 overflow-hidden"
+        >
+          <span className="absolute inset-0 -translate-x-full shimmer-animate bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <Sparkles className="w-4 h-4 mr-2 relative z-10" />
+          <span className="relative z-10">升级解锁完整报告 &middot; ¥9.9</span>
+        </Button>
+        <p className="mt-3 text-[10px] text-muted-foreground text-center">
+          已有 {new Intl.NumberFormat("zh-CN").format(unlockCount)} 人解锁完整报告
+        </p>
       </div>
     </div>
   )
