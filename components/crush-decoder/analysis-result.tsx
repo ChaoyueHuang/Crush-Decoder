@@ -7,6 +7,7 @@ import { MbtiCard } from "./mbti-card"
 import { PersonalityRadar } from "./personality-radar"
 import { PsychologyCard } from "./psychology-card"
 import { LockedOverlay } from "./locked-section"
+import { SbtiCard } from "./sbti-card"
 import {
   WeaknessAnalysis,
   AuthenticityCheck,
@@ -27,6 +28,12 @@ interface AnalysisResultProps {
   onConsumeDopamine: (amount: number) => void
   onInsufficientDopamine: (required: number) => void
   analysisData?: AnalysisData
+  sbtiData?: {
+    type: string
+    nickname: string
+    quote: string
+    description: string
+  }
 }
 
 // Mock data (field-name placeholders for UI mapping checks)
@@ -357,6 +364,7 @@ export function AnalysisResult({
   onConsumeDopamine,
   onInsufficientDopamine,
   analysisData,
+  sbtiData,
 }: AnalysisResultProps) {
   const analysis = analysisData ?? mockAnalysis
   const { personalityData, mbtiData, psychologyData, premiumData } = buildViewData(analysis)
@@ -404,6 +412,15 @@ export function AnalysisResult({
           ranking={analysis.analysis.conquest_difficulty.ranking}
           desc={analysis.analysis.conquest_difficulty.desc}
         />
+
+        {sbtiData && (
+          <SbtiCard
+            type={sbtiData.type}
+            nickname={sbtiData.nickname}
+            quote={sbtiData.quote}
+            description={sbtiData.description}
+          />
+        )}
 
         {/* Module 2: MBTI */}
         <MbtiCard {...mbtiData} />

@@ -17,6 +17,8 @@ const authenticityItem = z
 
 export const analysisSchema = z.object({
   is_wechat_or_xiaohongshu: z.union([z.literal(0), z.literal(1)]),
+  sbti_dimensions: z.array(z.enum(["L", "M", "H"])).length(15),
+  is_alcoholic: z.boolean(),
   analysis: z.object({
     conquest_difficulty: z.object({
       score: boundedScore,

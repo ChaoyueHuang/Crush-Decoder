@@ -1,4 +1,5 @@
 import { analysisSchema } from "@/lib/analysis-schema"
+import { calculateSBTI } from "@/lib/sbti/engine"
 import { readFile } from "fs/promises"
 import path from "path"
 
@@ -67,6 +68,8 @@ const readPrompt = async () => {
 
 const REPAIR_SCHEMA_HINT = `{
   "is_wechat_or_xiaohongshu": 0|1,
+  "sbti_dimensions": ["L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H", "L"|"M"|"H"],
+  "is_alcoholic": true|false,
   "analysis": {
     "conquest_difficulty": {"score":0-100,"ranking":"...","desc":"..."},
     "mbti_profile": {"type":"...","name":"...","probability":"75%","secondary_type":"...","secondary_probability":"30%","secondary_name":"...","logic":"..."},
@@ -266,7 +269,16 @@ export async function POST(req: Request) {
       }
 
       if (parsed.success) {
-        return Response.json({ data: parsed.data })
+        const sbti = calculateSBTI(parsed.data.sbti_dimensions, parsed.data.is_alcoholic)
+        return Response.json({
+          data: parsed.data,
+          sbti: {
+            code: sbti.code,
+            name: sbti.name,
+            intro: sbti.intro,
+            desc: sbti.desc,
+          },
+        })
       }
 
       const repairedText = await requestJsonRepair(message)
@@ -276,7 +288,16 @@ export async function POST(req: Request) {
           const repairedJson = JSON.parse(repairedJsonText)
           const repairedParsed = analysisSchema.safeParse(repairedJson)
           if (repairedParsed.success) {
-            return Response.json({ data: repairedParsed.data })
+            const sbti = calculateSBTI(repairedParsed.data.sbti_dimensions, repairedParsed.data.is_alcoholic)
+            return Response.json({
+              data: repairedParsed.data,
+              sbti: {
+                code: sbti.code,
+                name: sbti.name,
+                intro: sbti.intro,
+                desc: sbti.desc,
+              },
+            })
           }
         } catch {
           // fall through

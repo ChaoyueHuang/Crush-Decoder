@@ -10,6 +10,7 @@ import { PaymentModal } from "@/components/crush-decoder/payment-modal"
 import { Toaster, toast } from "sonner"
 import { analysisSchema, type AnalysisData } from "@/lib/analysis-schema"
 import { createBrowserSupabaseClient } from "@/lib/supabase-client"
+import { calculateSBTI } from "@/lib/sbti/engine"
 
 const DECODING_STAGES = [
   "AI 正在阅读...",
@@ -33,6 +34,12 @@ export default function CrushDecoderPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
+  const [sbtiData, setSbtiData] = useState<{
+    type: string
+    nickname: string
+    quote: string
+    description: string
+  } | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
   const waitTimeoutRef = useRef<number | null>(null)
   const [ghostId, setGhostId] = useState<string>("")
@@ -119,6 +126,7 @@ export default function CrushDecoderPage() {
       if (!raw) return
       const parsed = JSON.parse(raw)
       if (parsed?.analysisData) setAnalysisData(parsed.analysisData)
+      if (parsed?.sbtiData) setSbtiData(parsed.sbtiData)
       if (typeof parsed?.showResult === "boolean") setShowResult(parsed.showResult)
       if (typeof parsed?.isUnlocked === "boolean") setIsUnlocked(parsed.isUnlocked)
       if (parsed?.showPaymentModal) setShowPaymentModal(true)
@@ -247,6 +255,7 @@ export default function CrushDecoderPage() {
         })
         setShowResult(false)
         setAnalysisData(null)
+        setSbtiData(null)
       }
       reader.readAsDataURL(file)
     })
@@ -257,6 +266,7 @@ export default function CrushDecoderPage() {
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index))
     setShowResult(false)
     setAnalysisData(null)
+    setSbtiData(null)
   }, [])
 
   const handleDecode = useCallback(async () => {
@@ -282,6 +292,7 @@ export default function CrushDecoderPage() {
     let cancelled = false
     setDecodingStage(DECODING_STAGES[0])
     setShowResult(false)
+    setSbtiData(null)
 
     try {
       const stageLoop = (async () => {
@@ -394,7 +405,34 @@ export default function CrushDecoderPage() {
       }
 
       await stageLoop
+      const sbtiPayload = payload?.sbti
+      const nextSbti =
+        sbtiPayload &&
+        typeof sbtiPayload.code === "string" &&
+        typeof sbtiPayload.name === "string" &&
+        typeof sbtiPayload.intro === "string" &&
+        typeof sbtiPayload.desc === "string"
+          ? {
+              type: sbtiPayload.code,
+              nickname: sbtiPayload.name,
+              quote: sbtiPayload.intro,
+              description: sbtiPayload.desc,
+            }
+          : null
+      const resolvedSbti =
+        nextSbti ??
+        (() => {
+          const sbti = calculateSBTI(parsed.data.sbti_dimensions, parsed.data.is_alcoholic)
+          return {
+            type: sbti.code,
+            nickname: sbti.name,
+            quote: sbti.intro,
+            description: sbti.desc,
+          }
+        })()
+
       setAnalysisData(parsed.data)
+      setSbtiData(resolvedSbti)
       setShowResult(true)
       toast.success("解码完成！", {
         description: "已生成你的 Crush 分析报告",
@@ -478,6 +516,7 @@ export default function CrushDecoderPage() {
             onUnlock={handleUnlock}
             isUnlocked={isUnlocked}
             analysisData={analysisData ?? undefined}
+            sbtiData={sbtiData ?? undefined}
             dopamine={dopamine}
             onConsumeDopamine={(amount) => {
               if (dopamine < amount) {
@@ -536,6 +575,7 @@ export default function CrushDecoderPage() {
           try {
             const snapshot = {
               analysisData,
+              sbtiData,
               showResult,
               isUnlocked,
               showPaymentModal: true,
