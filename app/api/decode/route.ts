@@ -3,7 +3,10 @@ import { readFile } from "fs/promises"
 import path from "path"
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-const IMAGE_MODEL_ID = "google/gemini-3-pro-preview"
+const DEFAULT_IMAGE_MODELS = ["google/gemini-3.1-pro-preview"]
+const IMAGE_MODELS = process.env.OPENROUTER_IMAGE_MODELS?.split(",")
+  .map((model) => model.trim())
+  .filter(Boolean) ?? DEFAULT_IMAGE_MODELS
 const TEXT_MODEL_ID = "deepseek/deepseek-v3.2"
 const RETRYABLE_STATUS = new Set([429, 503, 524])
 const REQUEST_TIMEOUT_MS = 60000
@@ -168,18 +171,19 @@ export async function POST(req: Request) {
       })),
     ]
 
-    const requestBody = {
-      model: IMAGE_MODEL_ID,
+    const buildRequestBody = (model: string) => ({
+      model,
       messages: [{ role: "user", content }],
       reasoning: { enabled: true },
       max_tokens: 3500,
       temperature: 0.2,
       stream: true,
-    }
+    })
 
-    const callModelOnce = async () => {
+    const callModelOnce = async (model: string) => {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+      const requestBody = buildRequestBody(model)
       const apiResponse = await fetchWithRetry(OPENROUTER_ENDPOINT, {
         method: "POST",
         headers: {
@@ -193,6 +197,12 @@ export async function POST(req: Request) {
 
       if (!apiResponse.ok) {
         const errorText = await apiResponse.text()
+        if (
+          (apiResponse.status === 404 && errorText.includes("No endpoints found")) ||
+          (apiResponse.status === 403 && errorText.includes("not available in your region"))
+        ) {
+          return { retry: true, error: errorText }
+        }
         if (apiResponse.status === 429) {
           return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 })
         }
@@ -214,9 +224,33 @@ export async function POST(req: Request) {
     }
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const messageOrResponse = await callModelOnce()
-      if (typeof messageOrResponse !== "string") {
-        return messageOrResponse
+      let lastEndpointError = ""
+      let messageOrResponse: string | Response | null = null
+
+      for (const model of IMAGE_MODELS) {
+        const result = await callModelOnce(model)
+        if (typeof result === "string") {
+          messageOrResponse = result
+          break
+        }
+        if (result instanceof Response) {
+          return result
+        }
+        if (result && typeof result === "object" && "retry" in result) {
+          lastEndpointError = result.error ?? ""
+          continue
+        }
+      }
+
+      if (!messageOrResponse) {
+        return Response.json(
+          {
+            error:
+              lastEndpointError ||
+              `模型不可用，请配置 OPENROUTER_IMAGE_MODELS（当前候选：${IMAGE_MODELS.join(", ")}）`,
+          },
+          { status: 404 },
+        )
       }
 
       const message = messageOrResponse
