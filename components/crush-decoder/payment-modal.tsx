@@ -14,7 +14,7 @@ interface PaymentModalProps {
   visitorId?: string
 }
 
-const XIANYU_URL = "https://m.tb.cn/h.7sFlEwT?tk=QnmyUjjzRss"
+const XIANYU_URL = "https://m.tb.cn/h.in7pqPj?tk=mVwJ5fPncZD"
 
 const features = [
   "软肋分析 - 找到 TA 的情感弱点",
