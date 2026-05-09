@@ -79,7 +79,7 @@ export function HeroSection({
           Crush Decoder
         </h1>
         <p className="mt-4 text-muted-foreground text-sm md:text-base mx-auto px-2">
-          遇到 Crush 怎么办？上传 TA 的朋友圈或小红书截图，秒懂你的 Crush
+          上传 TA 的朋友圈或小红书截图，一分钟看穿 TA 是真诚、养鱼，还是海王、杀猪盘
         </p>
       </div>
 
