@@ -4,7 +4,7 @@ import { readFile } from "fs/promises"
 import path from "path"
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-const DEFAULT_IMAGE_MODELS = ["google/gemini-3.1-pro-preview"]
+const DEFAULT_IMAGE_MODELS = ["google/gemini-3.5-flash"]
 const IMAGE_MODELS = process.env.OPENROUTER_IMAGE_MODELS?.split(",")
   .map((model) => model.trim())
   .filter(Boolean) ?? DEFAULT_IMAGE_MODELS
@@ -148,12 +148,24 @@ const readStreamedContent = async (response: Response) => {
   return result
 }
 
+const maskKey = (value: string) => {
+  if (value.length <= 10) return `${value.slice(0, 2)}***${value.slice(-2)}`
+  return `${value.slice(0, 6)}...${value.slice(-4)}`
+}
+
 export async function POST(req: Request) {
   try {
     const apiKey = process.env.OPENROUTER_API_KEY
     if (!apiKey) {
       return Response.json({ error: "缺少 OPENROUTER_API_KEY" }, { status: 500 })
     }
+
+    console.log("[decode] config:", {
+      imageModels: IMAGE_MODELS,
+      hasImageModelsEnv: Boolean(process.env.OPENROUTER_IMAGE_MODELS?.trim()),
+      imageModelsEnvRaw: process.env.OPENROUTER_IMAGE_MODELS ?? null,
+      apiKeyFingerprint: maskKey(apiKey),
+    })
 
     const { images, visitorId } = (await req.json()) as { images?: string[]; visitorId?: string }
     if (!images || images.length === 0) {
@@ -174,16 +186,20 @@ export async function POST(req: Request) {
       })),
     ]
 
-    const buildRequestBody = (model: string) => ({
-      model,
-      messages: [{ role: "user", content }],
-      reasoning: { enabled: true },
-      max_tokens: 3500,
-      temperature: 0.2,
-      stream: true,
-    })
+    const buildRequestBody = (model: string) => {
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages: [{ role: "user", content }],
+        max_tokens: 3500,
+        temperature: 0.2,
+        stream: true,
+      }
+
+      return requestBody
+    }
 
     const callModelOnce = async (model: string) => {
+      console.log("[decode] requesting model:", model)
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
       const requestBody = buildRequestBody(model)
@@ -200,6 +216,11 @@ export async function POST(req: Request) {
 
       if (!apiResponse.ok) {
         const errorText = await apiResponse.text()
+        console.log("[decode] model request failed:", {
+          model,
+          status: apiResponse.status,
+          errorText,
+        })
         if (
           (apiResponse.status === 404 && errorText.includes("No endpoints found")) ||
           (apiResponse.status === 403 && errorText.includes("not available in your region"))

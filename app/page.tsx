@@ -488,6 +488,11 @@ export default function CrushDecoderPage() {
 
   return (
     <main className="min-h-screen bg-background">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 h-96 w-96 rounded-full bg-neon-purple/20 blur-[128px]" />
+        <div className="absolute bottom-1/4 right-1/4 h-80 w-80 rounded-full bg-neon-cyan/15 blur-[100px]" />
+      </div>
+
       {/* Scan Line Effect */}
       <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.03]">
         <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(255,255,255,0.03)_2px,rgba(255,255,255,0.03)_4px)]" />

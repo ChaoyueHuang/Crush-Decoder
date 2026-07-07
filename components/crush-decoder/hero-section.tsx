@@ -67,12 +67,6 @@ export function HeroSection({
 
   return (
     <section className="relative min-h-[70vh] flex flex-col items-center justify-center px-4 py-12">
-      {/* Background Effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-neon-purple/20 rounded-full blur-[128px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-neon-cyan/15 rounded-full blur-[100px]" />
-      </div>
-
       {/* Title with Gradient Effect */}
       <div className="relative z-10 mb-8 text-center">
         <h1 className="gradient-text font-mono text-4xl md:text-6xl lg:text-7xl font-bold tracking-wider">
