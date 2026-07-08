@@ -11,6 +11,7 @@ import { Toaster, toast } from "sonner"
 import { analysisSchema, type AnalysisData } from "@/lib/analysis-schema"
 import { createBrowserSupabaseClient } from "@/lib/supabase-client"
 import { calculateSBTI } from "@/lib/sbti/engine"
+import { DEV_MOCK_ANALYSIS } from "@/lib/dev-mock-analysis"
 
 const DECODING_STAGES = [
   "AI 正在阅读...",
@@ -24,6 +25,30 @@ const MAX_IMAGES = 6
 const MAX_API_IMAGES = 3
 const MAX_API_TOTAL_BYTES = 6 * 1024 * 1024
 const MAX_IMAGE_BYTES = 1100 * 1024
+const USE_LOCAL_MOCK_DECODE = process.env.NODE_ENV === "development"
+
+type DecodeResponsePayload = {
+  data?: unknown
+  sbti?: unknown
+}
+
+type DecodeSbtiPayload = {
+  code: string
+  name: string
+  intro: string
+  desc: string
+}
+
+const isDecodeSbtiPayload = (value: unknown): value is DecodeSbtiPayload => {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.code === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.intro === "string" &&
+    typeof candidate.desc === "string"
+  )
+}
 
 export default function CrushDecoderPage() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
@@ -312,6 +337,27 @@ export default function CrushDecoderPage() {
         }
       })()
 
+      if (USE_LOCAL_MOCK_DECODE) {
+        await stageLoop
+        const sbti = calculateSBTI(DEV_MOCK_ANALYSIS.sbti_dimensions, DEV_MOCK_ANALYSIS.is_alcoholic)
+
+        setAnalysisData(DEV_MOCK_ANALYSIS)
+        setSbtiData({
+          type: sbti.code,
+          nickname: sbti.name ?? sbti.cn ?? sbti.code,
+          quote: sbti.intro,
+          description: sbti.desc,
+        })
+        setShowResult(true)
+        toast.success("已生成本地 mock 报告", {
+          description: "本地开发环境未调用大模型",
+        })
+        setTimeout(() => {
+          resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }, 100)
+        return
+      }
+
       let response: Response
 
       if (USE_HELLO_TEST) {
@@ -382,6 +428,7 @@ export default function CrushDecoderPage() {
       } catch {
         throw new Error("服务端返回格式异常，请稍后重试")
       }
+      const decodePayload = payload as DecodeResponsePayload
 
       if (USE_HELLO_TEST) {
         await stageLoop
@@ -392,7 +439,7 @@ export default function CrushDecoderPage() {
         return
       }
 
-      const parsed = analysisSchema.safeParse(payload?.data)
+      const parsed = analysisSchema.safeParse(decodePayload.data)
       if (!parsed.success) {
         throw new Error("返回数据结构不符合要求")
       }
@@ -405,27 +452,22 @@ export default function CrushDecoderPage() {
       }
 
       await stageLoop
-      const sbtiPayload = payload?.sbti
-      const nextSbti =
-        sbtiPayload &&
-        typeof sbtiPayload.code === "string" &&
-        typeof sbtiPayload.name === "string" &&
-        typeof sbtiPayload.intro === "string" &&
-        typeof sbtiPayload.desc === "string"
-          ? {
-              type: sbtiPayload.code,
-              nickname: sbtiPayload.name,
-              quote: sbtiPayload.intro,
-              description: sbtiPayload.desc,
-            }
-          : null
+      const sbtiPayload = decodePayload.sbti
+      const nextSbti = isDecodeSbtiPayload(sbtiPayload)
+        ? {
+            type: sbtiPayload.code,
+            nickname: sbtiPayload.name,
+            quote: sbtiPayload.intro,
+            description: sbtiPayload.desc,
+          }
+        : null
       const resolvedSbti =
         nextSbti ??
         (() => {
           const sbti = calculateSBTI(parsed.data.sbti_dimensions, parsed.data.is_alcoholic)
           return {
             type: sbti.code,
-            nickname: sbti.name,
+            nickname: sbti.name ?? sbti.cn ?? sbti.code,
             quote: sbti.intro,
             description: sbti.desc,
           }
@@ -604,7 +646,7 @@ export default function CrushDecoderPage() {
         isClaimingFirst={isClaimingFirstReward}
         isClaimingDaily={isClaimingDailyReward}
         onClaimFirst={async () => {
-          if (!ghostId || hasClaimedFirstReward) return
+          if (!ghostId || hasClaimedFirstReward) return null
           setIsClaimingFirstReward(true)
           try {
             const res = await fetch("/api/dopamine/claim-first", {
@@ -628,7 +670,7 @@ export default function CrushDecoderPage() {
           }
         }}
         onClaimDaily={async () => {
-          if (!ghostId || hasClaimedDailyReward) return
+          if (!ghostId || hasClaimedDailyReward) return null
           setIsClaimingDailyReward(true)
           try {
             const localDate = new Date().toLocaleDateString("en-CA")

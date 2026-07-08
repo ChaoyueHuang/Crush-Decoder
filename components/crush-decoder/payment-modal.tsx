@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { X, Sparkles, Check, ExternalLink, Unlock, Fish } from "lucide-react"
+import { X, Sparkles, Check, Image as ImageIcon, Unlock, Fish, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
@@ -14,7 +14,7 @@ interface PaymentModalProps {
   visitorId?: string
 }
 
-const XIANYU_URL = "https://m.tb.cn/h.in7pqPj?tk=mVwJ5fPncZD"
+const XIANYU_GUIDE_IMAGE = "/xianyu-purchase-guide.png"
 
 const features = [
   "软肋分析 - 找到 TA 的情感弱点",
@@ -34,6 +34,7 @@ export function PaymentModal({
 }: PaymentModalProps) {
   const [redemptionCode, setRedemptionCode] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
+  const [showPurchaseGuide, setShowPurchaseGuide] = useState(false)
 
   if (!isOpen) return null
 
@@ -83,7 +84,7 @@ export function PaymentModal({
 
   const handleOpenXianyu = () => {
     onOpenXianyu?.()
-    window.location.href = XIANYU_URL
+    setShowPurchaseGuide(true)
   }
 
   return (
@@ -185,12 +186,68 @@ export function PaymentModal({
               variant="outline"
               className="w-full h-10 bg-transparent border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10 hover:border-yellow-500 hover:text-yellow-500 transition-all"
             >
-              <ExternalLink className="w-4 h-4 mr-2" />
+              <ImageIcon className="w-4 h-4 mr-2" />
               打开闲鱼购买兑换码
             </Button>
           </div>
         </div>
       </div>
+
+      {showPurchaseGuide && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/85 backdrop-blur-sm"
+            onClick={() => setShowPurchaseGuide(false)}
+          />
+
+          <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-yellow-500/30 bg-card shadow-[0_0_50px_rgba(234,179,8,0.22)]">
+            <button
+              type="button"
+              onClick={() => setShowPurchaseGuide(false)}
+              className="absolute right-3 top-3 z-10 rounded-full bg-black/60 p-2 text-white transition-colors hover:bg-black/80"
+              aria-label="关闭购买指南"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="border-b border-border/50 bg-gradient-to-b from-yellow-500/15 to-transparent p-4 pr-12">
+              <div className="flex items-center gap-2">
+                <Fish className="h-4 w-4 text-yellow-500" />
+                <h3 className="text-sm font-semibold text-foreground">闲鱼购买兑换码</h3>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                保存图片到相册后，打开闲鱼扫一扫识别二维码。移动端也可以长按图片保存。
+              </p>
+            </div>
+
+            <div className="max-h-[68vh] overflow-y-auto bg-background/70 p-3">
+              <img
+                src={XIANYU_GUIDE_IMAGE}
+                alt="闲鱼购买兑换码指引"
+                className="h-auto w-full rounded-xl border border-border/40"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-t border-border/50 bg-secondary/20 p-4">
+              <a
+                href={XIANYU_GUIDE_IMAGE}
+                download
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-yellow-500/50 bg-transparent text-sm font-medium text-yellow-500 transition-colors hover:bg-yellow-500/10"
+              >
+                <Download className="h-4 w-4" />
+                保存图片
+              </a>
+              <Button
+                type="button"
+                onClick={() => setShowPurchaseGuide(false)}
+                className="h-10 bg-neon-purple text-primary-foreground hover:bg-neon-purple/90"
+              >
+                我知道了
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

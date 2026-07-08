@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { toast } from "sonner"
 import type { AnalysisData } from "@/lib/analysis-schema"
+import { DEV_MOCK_ANALYSIS } from "@/lib/dev-mock-analysis"
 
 interface AnalysisResultProps {
   onUnlock: () => void
@@ -347,7 +348,7 @@ const buildViewData = (analysis: AnalysisData) => {
     summary: {
       summary: analysis.analysis.summary_and_advice.essence_summary,
       advices: analysis.analysis.summary_and_advice.suggestions.map((text, index) => ({
-        priority: (index === 0 ? "high" : index === 1 ? "medium" : "low") as const,
+        priority: index === 0 ? ("high" as const) : index === 1 ? ("medium" as const) : ("low" as const),
         text,
       })),
       finalNote: analysis.analysis.final_note.note,
@@ -366,7 +367,7 @@ export function AnalysisResult({
   analysisData,
   sbtiData,
 }: AnalysisResultProps) {
-  const analysis = analysisData ?? mockAnalysis
+  const analysis = analysisData ?? DEV_MOCK_ANALYSIS
   const { personalityData, mbtiData, psychologyData, premiumData } = buildViewData(analysis)
   const reportRef = useRef<HTMLDivElement>(null)
 

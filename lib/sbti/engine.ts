@@ -31,7 +31,7 @@ const manhattanDistance = (a: number[], b: number[]) =>
   a.reduce((sum, value, index) => sum + Math.abs(value - b[index]), 0)
 
 export const calculateSBTI = (dimensions: string[], isAlcoholic: boolean): SBTIType => {
-  const types = sbtiTypes as SBTITypesPayload
+  const types = sbtiTypes as unknown as SBTITypesPayload
 
   if (isAlcoholic) {
     const drunk = types.standard.find((type) => type.code === "DRUNK")
@@ -46,6 +46,7 @@ export const calculateSBTI = (dimensions: string[], isAlcoholic: boolean): SBTIT
 
   for (const type of types.standard) {
     if (type.code === "DRUNK" || type.pattern === "ANY") continue
+    if (!type.pattern) continue
 
     const patternVector = parsePattern(type.pattern)
     if (!patternVector) continue

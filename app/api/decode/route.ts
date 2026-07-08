@@ -295,7 +295,7 @@ export async function POST(req: Request) {
           data: parsed.data,
           sbti: {
             code: sbti.code,
-            name: sbti.name,
+            name: sbti.name ?? sbti.cn ?? sbti.code,
             intro: sbti.intro,
             desc: sbti.desc,
           },
@@ -314,7 +314,7 @@ export async function POST(req: Request) {
               data: repairedParsed.data,
               sbti: {
                 code: sbti.code,
-                name: sbti.name,
+                name: sbti.name ?? sbti.cn ?? sbti.code,
                 intro: sbti.intro,
                 desc: sbti.desc,
               },
